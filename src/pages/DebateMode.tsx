@@ -3,20 +3,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { MessageCircle, RefreshCw, ThumbsUp } from 'lucide-react';
 import { debateApi } from '../services/api';
 import Spinner from '../components/ui/Spinner';
-
-interface DebateState {
-  dilemma: string;
-  userArgument: string;
-  evaluation: {
-    score: number;
-    feedback: string;
-    strengths: string[];
-    areas_to_improve: string[];
-  } | null;
-  isLoading: boolean;
-  isEvaluating: boolean;
-  error: string | null;
-}
+import { DebateState } from '@/types/debate';
 
 const DebateMode: React.FC = () => {
   const { theme } = useTheme();

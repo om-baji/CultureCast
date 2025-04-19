@@ -1,4 +1,5 @@
 import { Route, BrowserRouter as Router, Routes } from 'react-router-dom';
+import AuthForm from './components/auth/form';
 import Layout from './components/layout/Layout';
 import { ThemeProvider } from './contexts/ThemeContext';
 import ConflictMode from './pages/ConflictMode';
@@ -21,6 +22,7 @@ function App() {
             <Route path="debate" element={<DebateMode />} />
             <Route path="*" element={<NotFound />} />
           </Route>
+          <Route path='/auth' element={<AuthForm />} />
         </Routes>
       </Router>
     </ThemeProvider>
