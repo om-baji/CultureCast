@@ -1,24 +1,57 @@
-import React, { useState, useEffect } from 'react';
-import { useTheme } from '../contexts/ThemeContext';
-import { MessageCircle, RefreshCw, ThumbsUp } from 'lucide-react';
-import { debateApi } from '../services/api';
+import { Award, MessageCircle, RefreshCw, Send } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
 import Spinner from '../components/ui/Spinner';
-import { DebateState } from '@/types/debate';
+import { useTheme } from '../contexts/ThemeContext';
+import { debateApi } from '../services/api';
+
+// Message interface for the debate conversation
+interface Message {
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: Date;
+}
+
+interface DebateState {
+  dilemma: string;
+  messages: Message[];
+  currentMessage: string;
+  evaluation: {
+    evaluation: string;
+    timestamp: string;
+  } | null;
+  isLoading: boolean;
+  isSending: boolean;
+  isEvaluating: boolean;
+  error: string | null;
+  debateEnded: boolean;
+}
 
 const DebateMode: React.FC = () => {
   const { theme } = useTheme();
+  const messagesEndRef = useRef<HTMLDivElement>(null);
   const [debateState, setDebateState] = useState<DebateState>({
     dilemma: '',
-    userArgument: '',
+    messages: [],
+    currentMessage: '',
     evaluation: null,
     isLoading: false,
+    isSending: false,
     isEvaluating: false,
-    error: null
+    error: null,
+    debateEnded: false
   });
 
   useEffect(() => {
     fetchDilemma();
   }, []);
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [debateState.messages]);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
 
   const fetchDilemma = async () => {
     setDebateState(prev => ({
@@ -26,15 +59,25 @@ const DebateMode: React.FC = () => {
       isLoading: true,
       error: null,
       evaluation: null,
-      userArgument: ''
+      messages: [],
+      currentMessage: '',
+      debateEnded: false
     }));
 
     try {
       const response = await debateApi.getPrompt();
       
+      // Add the first assistant message with the dilemma
+      const initialMessage: Message = {
+        role: 'assistant',
+        content: response.prompt,
+        timestamp: new Date()
+      };
+      
       setDebateState(prev => ({
         ...prev,
         dilemma: response.prompt,
+        messages: [initialMessage],
         isLoading: false
       }));
     } catch (error) {
@@ -46,8 +89,60 @@ const DebateMode: React.FC = () => {
     }
   };
 
-  const evaluateArgument = async () => {
-    if (!debateState.userArgument.trim() || debateState.isEvaluating) return;
+  const sendMessage = async () => {
+    if (!debateState.currentMessage.trim() || debateState.isSending || debateState.debateEnded) return;
+    
+    const userMessage: Message = {
+      role: 'user',
+      content: debateState.currentMessage,
+      timestamp: new Date()
+    };
+
+    setDebateState(prev => ({
+      ...prev,
+      messages: [...prev.messages, userMessage],
+      currentMessage: '',
+      isSending: true,
+      error: null
+    }));
+
+    try {
+      // Format history for API
+      const history = debateState.messages.map(msg => ({
+        role: msg.role,
+        content: msg.content
+      }));
+
+      // Send message to API
+      const response = await debateApi.sendMessage(
+        debateState.dilemma,
+        debateState.currentMessage,
+        history
+      );
+      
+      // Add assistant's response
+      const assistantMessage: Message = {
+        role: 'assistant',
+        content: response.content,
+        timestamp: new Date()
+      };
+      
+      setDebateState(prev => ({
+        ...prev,
+        messages: [...prev.messages, assistantMessage],
+        isSending: false
+      }));
+    } catch (error) {
+      setDebateState(prev => ({
+        ...prev,
+        isSending: false,
+        error: 'Failed to send your message. Please try again.'
+      }));
+    }
+  };
+
+  const endDebateAndEvaluate = async () => {
+    if (debateState.messages.length <= 1 || debateState.isEvaluating) return;
     
     setDebateState(prev => ({
       ...prev,
@@ -56,34 +151,64 @@ const DebateMode: React.FC = () => {
     }));
 
     try {
-      const response = await debateApi.evaluateArgument(
-        debateState.dilemma, 
-        debateState.userArgument
+      // Compile the whole conversation into a response string
+      const fullDebate = debateState.messages
+        .map(msg => `${msg.role === 'user' ? 'User' : 'Assistant'}: ${msg.content}`)
+        .join('\n\n');
+      
+      const evaluationResponse = await debateApi.evaluateDebate(
+        debateState.dilemma,
+        fullDebate
       );
       
       setDebateState(prev => ({
         ...prev,
         evaluation: {
-          score: response.score,
-          feedback: response.feedback,
-          strengths: response.strengths || [],
-          areas_to_improve: response.areas_to_improve || []
+          evaluation: evaluationResponse.evaluation,
+          timestamp: evaluationResponse.timestamp
         },
-        isEvaluating: false
+        isEvaluating: false,
+        debateEnded: true
       }));
     } catch (error) {
       setDebateState(prev => ({
         ...prev,
         isEvaluating: false,
-        error: 'Failed to evaluate your argument. Please try again.'
+        error: 'Failed to evaluate the debate. Please try again.'
       }));
     }
   };
 
-  const getScoreColor = (score: number) => {
-    if (score >= 80) return theme === 'dark' ? 'text-green-400' : 'text-green-600';
-    if (score >= 60) return theme === 'dark' ? 'text-amber-400' : 'text-amber-600';
-    return theme === 'dark' ? 'text-red-400' : 'text-red-600';
+  const renderMessages = () => {
+    return debateState.messages.map((message, index) => (
+      <div 
+        key={index}
+        className={`mb-4 ${message.role === 'user' ? 'text-right' : 'text-left'}`}
+      >
+        <div 
+          className={`
+            inline-block max-w-3xl rounded-lg px-4 py-3
+            ${message.role === 'user' 
+              ? theme === 'dark' 
+                ? 'bg-rose-600 text-white' 
+                : 'bg-rose-500 text-white'
+              : theme === 'dark'
+                ? 'bg-slate-700 text-white' 
+                : 'bg-gray-200 text-gray-800'
+            }
+          `}
+        >
+          <div className={`prose max-w-none ${theme === 'dark' ? 'prose-invert' : ''}`}>
+            {message.content.split('\n').map((paragraph, idx) => (
+              <p key={idx}>{paragraph}</p>
+            ))}
+          </div>
+          <div className={`text-xs mt-1 ${message.role === 'user' ? 'text-gray-200' : theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
+            {message.timestamp.toLocaleTimeString()}
+          </div>
+        </div>
+      </div>
+    ));
   };
 
   return (
@@ -94,7 +219,7 @@ const DebateMode: React.FC = () => {
           <h1 className="text-3xl font-bold">Debate Mode</h1>
         </div>
         <p className="text-lg max-w-3xl">
-          Explore ethical dilemmas and cultural perspectives. Craft arguments and receive feedback on your reasoning.
+          Engage in a debate on ethical dilemmas. When you're done, get an evaluation of your arguments.
         </p>
       </header>
 
@@ -102,74 +227,17 @@ const DebateMode: React.FC = () => {
         <div className="lg:col-span-2">
           <div className={`rounded-xl shadow-lg overflow-hidden ${theme === 'dark' ? 'bg-slate-800' : 'bg-white'} mb-6`}>
             <div className={`p-4 border-b ${theme === 'dark' ? 'border-slate-700' : 'border-gray-200'} flex justify-between items-center`}>
-              <h2 className="text-xl font-semibold">Ethical Dilemma</h2>
-              <button
-                onClick={fetchDilemma}
-                disabled={debateState.isLoading}
-                className={`
-                  p-2 rounded-md 
-                  ${theme === 'dark' ? 'hover:bg-slate-700' : 'hover:bg-gray-100'}
-                  ${debateState.isLoading ? 'opacity-50 cursor-not-allowed' : ''}
-                  transition-colors
-                `}
-                title="Get New Dilemma"
-              >
-                <RefreshCw size={18} className={debateState.isLoading ? 'animate-spin' : ''} />
-              </button>
-            </div>
-            
-            {debateState.error && (
-              <div className="p-4 bg-red-100 border-l-4 border-red-500 text-red-700">
-                <p>{debateState.error}</p>
-              </div>
-            )}
-            
-            <div className="p-6">
-              {debateState.isLoading ? (
-                <div className="flex justify-center py-8">
-                  <Spinner size="lg" />
-                </div>
-              ) : (
-                <div className={`prose max-w-none ${theme === 'dark' ? 'prose-invert' : ''}`}>
-                  {debateState.dilemma.split('\n').map((paragraph, idx) => (
-                    <p key={idx}>{paragraph}</p>
-                  ))}
-                </div>
-              )}
-              
-              <div className="mt-6">
-                <label 
-                  htmlFor="argument" 
-                  className={`block text-sm font-medium mb-2 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}
-                >
-                  Your Argument
-                </label>
-                <textarea
-                  id="argument"
-                  value={debateState.userArgument}
-                  onChange={(e) => setDebateState(prev => ({ ...prev, userArgument: e.target.value }))}
-                  placeholder="Present your argument, considering multiple perspectives and ethical principles..."
-                  rows={6}
-                  className={`
-                    w-full p-3 rounded-lg resize-none
-                    ${theme === 'dark' 
-                      ? 'bg-slate-700 border-slate-600 text-white' 
-                      : 'bg-white border-gray-300 text-gray-800'}
-                    border focus:ring-2 focus:ring-rose-500 focus:ring-opacity-50
-                    focus:border-rose-500 transition-colors
-                  `}
-                  disabled={debateState.isLoading || debateState.isEvaluating}
-                />
-                
-                <div className="mt-4 flex justify-end">
+              <h2 className="text-xl font-semibold">Debate</h2>
+              <div className="flex space-x-2">
+                {!debateState.debateEnded && (
                   <button
-                    onClick={evaluateArgument}
-                    disabled={debateState.isLoading || debateState.isEvaluating || !debateState.userArgument.trim()}
+                    onClick={endDebateAndEvaluate}
+                    disabled={debateState.isLoading || debateState.isEvaluating || debateState.messages.length <= 1}
                     className={`
-                      flex items-center space-x-2 px-4 py-2 rounded-lg font-medium
-                      ${debateState.isLoading || debateState.isEvaluating || !debateState.userArgument.trim()
+                      flex items-center space-x-1 px-3 py-1 rounded-md text-sm font-medium
+                      ${debateState.isLoading || debateState.isEvaluating || debateState.messages.length <= 1
                         ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
-                        : 'bg-gradient-to-r from-rose-500 to-red-600 text-white hover:opacity-90'}
+                        : 'bg-amber-500 text-white hover:bg-amber-600'}
                       transition-colors
                     `}
                   >
@@ -180,13 +248,93 @@ const DebateMode: React.FC = () => {
                       </>
                     ) : (
                       <>
-                        <ThumbsUp size={16} />
-                        <span>Evaluate Argument</span>
+                        <Award size={16} />
+                        <span>End & Evaluate</span>
                       </>
                     )}
                   </button>
-                </div>
+                )}
+                <button
+                  onClick={fetchDilemma}
+                  disabled={debateState.isLoading}
+                  className={`
+                    p-2 rounded-md 
+                    ${theme === 'dark' ? 'hover:bg-slate-700' : 'hover:bg-gray-100'}
+                    ${debateState.isLoading ? 'opacity-50 cursor-not-allowed' : ''}
+                    transition-colors
+                  `}
+                  title="Get New Dilemma"
+                >
+                  <RefreshCw size={18} className={debateState.isLoading ? 'animate-spin' : ''} />
+                </button>
               </div>
+            </div>
+            
+            {debateState.error && (
+              <div className="p-4 bg-red-100 border-l-4 border-red-500 text-red-700">
+                <p>{debateState.error}</p>
+              </div>
+            )}
+            
+            <div className="p-4 h-96 overflow-y-auto">
+              {debateState.isLoading ? (
+                <div className="flex justify-center py-8">
+                  <Spinner size="lg" />
+                </div>
+              ) : (
+                <>
+                  {renderMessages()}
+                  <div ref={messagesEndRef} />
+                </>
+              )}
+            </div>
+            
+            <div className={`p-4 border-t ${theme === 'dark' ? 'border-slate-700' : 'border-gray-200'}`}>
+              <div className="flex">
+                <input
+                  type="text"
+                  value={debateState.currentMessage}
+                  onChange={(e) => setDebateState(prev => ({ ...prev, currentMessage: e.target.value }))}
+                  placeholder="Enter your argument..."
+                  className={`
+                    flex-grow p-2 rounded-l-lg
+                    ${theme === 'dark' 
+                      ? 'bg-slate-700 border-slate-600 text-white' 
+                      : 'bg-white border-gray-300 text-gray-800'}
+                    border border-r-0 focus:ring-2 focus:ring-rose-500 focus:ring-opacity-50
+                    focus:border-rose-500 transition-colors
+                  `}
+                  disabled={debateState.isLoading || debateState.isSending || debateState.debateEnded}
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      sendMessage();
+                    }
+                  }}
+                />
+                <button
+                  onClick={sendMessage}
+                  disabled={debateState.isLoading || debateState.isSending || !debateState.currentMessage.trim() || debateState.debateEnded}
+                  className={`
+                    flex items-center justify-center p-2 rounded-r-lg
+                    ${debateState.isLoading || debateState.isSending || !debateState.currentMessage.trim() || debateState.debateEnded
+                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed' 
+                      : 'bg-rose-500 text-white hover:bg-rose-600'}
+                    transition-colors w-12
+                  `}
+                >
+                  {debateState.isSending ? (
+                    <Spinner size="sm" />
+                  ) : (
+                    <Send size={18} />
+                  )}
+                </button>
+              </div>
+              {debateState.debateEnded && (
+                <div className="mt-2 text-center text-sm text-amber-500">
+                  Debate has ended. See evaluation on the right.
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -195,66 +343,38 @@ const DebateMode: React.FC = () => {
           {debateState.evaluation && (
             <div className={`rounded-xl shadow-lg overflow-hidden ${theme === 'dark' ? 'bg-slate-800' : 'bg-white'} sticky top-4`}>
               <div className={`p-4 border-b ${theme === 'dark' ? 'border-slate-700' : 'border-gray-200'}`}>
-                <h2 className="text-xl font-semibold">Evaluation</h2>
+                <h2 className="text-xl font-semibold">Debate Evaluation</h2>
               </div>
               
               <div className="p-4">
-                <div className="mb-6 text-center">
-                  <div className={`text-5xl font-bold mb-2 ${getScoreColor(debateState.evaluation.score)}`}>
-                    {debateState.evaluation.score}/100
-                  </div>
-                  <div className="w-full bg-gray-200 dark:bg-slate-700 rounded-full h-2.5 mb-4">
-                    <div 
-                      className={`h-2.5 rounded-full ${
-                        debateState.evaluation.score >= 80 
-                          ? 'bg-green-500' 
-                          : debateState.evaluation.score >= 60 
-                            ? 'bg-amber-500' 
-                            : 'bg-red-500'
-                      }`} 
-                      style={{ width: `${debateState.evaluation.score}%` }}
-                    ></div>
-                  </div>
-                </div>
-                
                 <div className={`p-4 mb-4 rounded-lg ${theme === 'dark' ? 'bg-slate-700' : 'bg-gray-100'}`}>
-                  <p className={`text-sm ${theme === 'dark' ? 'text-gray-200' : 'text-gray-800'}`}>
-                    {debateState.evaluation.feedback}
-                  </p>
+                  <div className={`prose max-w-none ${theme === 'dark' ? 'prose-invert' : ''}`}>
+                    {debateState.evaluation.evaluation.split('\n').map((paragraph, idx) => (
+                      <p key={idx}>{paragraph}</p>
+                    ))}
+                  </div>
                 </div>
                 
-                <div className="mb-4">
-                  <h3 className={`text-sm font-semibold mb-2 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
-                    Strengths
-                  </h3>
-                  <ul className={`list-disc list-inside space-y-1 ${theme === 'dark' ? 'text-green-400' : 'text-green-600'}`}>
-                    {debateState.evaluation.strengths.map((strength, index) => (
-                      <li key={index} className="text-sm">
-                        <span className={theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}>
-                          {strength}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
+                <div className="text-sm text-gray-500 mt-2">
+                  Evaluated on: {new Date(debateState.evaluation.timestamp).toLocaleString()}
                 </div>
                 
-                <div>
-                  <h3 className={`text-sm font-semibold mb-2 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
-                    Areas to Improve
-                  </h3>
-                  <ul className={`list-disc list-inside space-y-1 ${theme === 'dark' ? 'text-amber-400' : 'text-amber-600'}`}>
-                    {debateState.evaluation.areas_to_improve.map((area, index) => (
-                      <li key={index} className="text-sm">
-                        <span className={theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}>
-                          {area}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
+                <div className="mt-4 text-center">
+                  <button
+                    onClick={fetchDilemma}
+                    className={`
+                      flex items-center space-x-2 px-4 py-2 rounded-lg font-medium mx-auto
+                      bg-gradient-to-r from-rose-500 to-red-600 text-white hover:opacity-90
+                      transition-colors
+                    `}
+                  >
+                    <RefreshCw size={16} />
+                    <span>Start New Debate</span>
+                  </button>
                 </div>
               </div>
             </div>
-          )}
+          )}  
         </div>
       </div>
     </div>

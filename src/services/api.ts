@@ -1,7 +1,12 @@
-import { characterMap } from '@/constants/rpg_mode';
-import axios from 'axios';
+import { characterMap } from "@/constants/rpg_mode";
+import {
+  DebatePromptResponse,
+  DebateMessageResponse,
+  DebateEvaluationResponse,
+} from "@/types/debate";
+import axios from "axios";
 
-const BASE_URL = 'http://localhost:8000/api/v1';
+const BASE_URL = "http://localhost:8000/api/v1";
 
 interface StoryRequest {
   culture: string;
@@ -55,7 +60,7 @@ interface StoryResponseRPG {
 const api = axios.create({
   baseURL: BASE_URL,
   headers: {
-    'Content-Type': 'application/json',
+    "Content-Type": "application/json",
   },
 });
 
@@ -65,69 +70,76 @@ export const storyApi = {
     // Enhance the request to ensure engaging content
     const enhancedRequest: StoryRequest = {
       ...storyRequest,
-      tone: storyRequest.tone || 'adventurous',
-      max_length: Math.max(storyRequest.max_length || 800, 300)
+      tone: storyRequest.tone || "adventurous",
+      max_length: Math.max(storyRequest.max_length || 800, 300),
     };
-    
-    const response = await api.post('/story', enhancedRequest);
+
+    const response = await api.post("/story", enhancedRequest);
     return response.data;
   },
-  
-  continueStory: async (userInput: string, currentStory: string): Promise<StoryResponse> => {
-    const keywords = userInput.split(' ');
+
+  continueStory: async (
+    userInput: string,
+    currentStory: string
+  ): Promise<StoryResponse> => {
+    const keywords = userInput.split(" ");
     const possibleCulture = keywords[0];
-    
+
     const continuationRequest: StoryRequest = {
-      culture: possibleCulture.length > 3 ? possibleCulture : 'General',
+      culture: possibleCulture.length > 3 ? possibleCulture : "General",
       theme: userInput,
       max_length: 500,
-      language: 'English',
-      tone: 'adventurous'
+      language: "English",
+      tone: "adventurous",
     };
-    
-    const response = await api.post('/story', continuationRequest);
+
+    const response = await api.post("/story", continuationRequest);
     return response.data;
-  }
+  },
 };
 
 export const rpgApi = {
   startSession: async (characterId: string) => {
-    const charParams = characterMap[characterId] || 
-      { role: 'Guide', culture: 'Global', era: 'Modern', tone: 'friendly', language: 'English' };
-    
+    const charParams = characterMap[characterId] || {
+      role: "Guide",
+      culture: "Global",
+      era: "Modern",
+      tone: "friendly",
+      language: "English",
+    };
+
     const initialPrompt = `You meet a ${charParams.role} from ${charParams.culture} culture. How do you wish to begin your journey?`;
-    
+
     const payload: RolePlayRequest = {
       ...charParams,
       include_emotion: true,
       user_input: initialPrompt,
-      chat_history: []
+      chat_history: [],
     };
 
-    const response = await api.post<StoryResponse>('/rpg_mode', payload);
-    
+    const response = await api.post<StoryResponse>("/rpg_mode", payload);
+
     return {
       scene: response.data.story,
       actions: [
         "Ask about their background",
         "Ask for guidance on your journey",
         "Share something about yourself",
-        "Inquire about local customs"
-      ]
+        "Inquire about local customs",
+      ],
     };
   },
-  
-  performAction: async (action: string) => {
 
-    const gameState = window.currentGameState || { 
+  performAction: async (action: string) => {
+    const gameState = window.currentGameState || {
       chatHistory: [],
-      currentRole: 'Guide',
-      currentCulture: 'Global',
-      currentEra: 'Modern',
-      currentTone: 'friendly',
-      currentLanguage: 'English'
+      currentRole: "Guide",
+      currentCulture: "Global",
+      currentEra: "Modern",
+      currentTone: "friendly",
+      currentLanguage: "English",
     };
-    
+
     const payload: RolePlayRequest = {
       role: gameState.currentRole,
       culture: gameState.currentCulture,
@@ -136,82 +148,103 @@ export const rpgApi = {
       language: gameState.currentLanguage,
       include_emotion: true,
       user_input: action,
-      chat_history: gameState.chatHistory || []
+      chat_history: gameState.chatHistory || [],
     };
 
-    const response = await api.post<StoryResponse>('/rpg_mode', payload);
-    
+    const response = await api.post<StoryResponse>("/rpg_mode", payload);
+
     const suggestedActions = generateSuggestedActions(response.data.story);
-    
+
     return {
       scene: response.data.story,
-      actions: suggestedActions
+      actions: suggestedActions,
     };
-  }
+  },
 };
 
 function generateSuggestedActions(currentScene: string): string[] {
-  
   const defaultActions = [
     "Continue the conversation",
     "Ask a question",
     "Share your thoughts",
-    "Change the subject"
+    "Change the subject",
   ];
-  
-  if (currentScene.toLowerCase().includes("journey") || currentScene.toLowerCase().includes("travel")) {
+
+  if (
+    currentScene.toLowerCase().includes("journey") ||
+    currentScene.toLowerCase().includes("travel")
+  ) {
     return [
       "Ask about the destination",
       "Inquire about dangers ahead",
       "Request advice for the journey",
-      "Share your travel experience"
+      "Share your travel experience",
     ];
   }
-  
-  if (currentScene.toLowerCase().includes("culture") || currentScene.toLowerCase().includes("tradition")) {
+
+  if (
+    currentScene.toLowerCase().includes("culture") ||
+    currentScene.toLowerCase().includes("tradition")
+  ) {
     return [
       "Ask for more details about their customs",
       "Compare with your own culture",
       "Request to participate in a cultural activity",
-      "Ask about the history behind the tradition"
+      "Ask about the history behind the tradition",
     ];
   }
-  
+
   return defaultActions;
 }
 
 export const conflictApi = {
   startScenario: async (scenarioId: string, roleId: string) => {
-    const response = await api.post('/conflict_resolution', { 
+    const response = await api.post("/conflict_resolution", {
       scenario_id: scenarioId,
       role_id: roleId,
-      action: 'start'
+      action: "start",
     });
     return response.data;
   },
-  
+
   submitResponse: async (response: string) => {
-    const result = await api.post('/conflict_resolution', {
+    const result = await api.post("/conflict_resolution", {
       response,
-      action: 'respond'
+      action: "respond",
     });
     return result.data;
-  }
+  },
 };
 
 export const debateApi = {
-  getPrompt: async () => {
-    const response = await api.get('/debate/prompt');
+  getPrompt: async (): Promise<DebatePromptResponse> => {
+    const response = await api.get("/debate/prompt");
     return response.data;
   },
-  
-  evaluateArgument: async (prompt: string, argument: string) => {
-    const response = await api.post('/debate/evaluate', { 
+
+  sendMessage: async (
+    prompt: string,
+    message: string,
+    history: Array<{ role: string; content: string }>
+  ): Promise<DebateMessageResponse> => {
+    const response = await api.post("/debate/message", {
       prompt,
-      argument 
+      message,
+      history,
     });
     return response.data;
-  }
+  },
+
+  evaluateDebate: async (
+    prompt: string,
+    argument: string
+  ): Promise<DebateEvaluationResponse> => {
+    const response = await api.post("/debate/evaluate", {
+      prompt,
+      response: argument,
+    });
+    return response.data;
+  },
 };
 
 export default api;

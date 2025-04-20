@@ -4,56 +4,8 @@ import { BookOpen, RefreshCcw, Share2, Sparkles, Bookmark, Book } from 'lucide-r
 import { storyApi } from '../services/api';
 import StoryDisplay from '../components/story/StoryDisplay';
 import StoryInput from '../components/story/StoryInput';
-
-interface StoryState {
-  isLoading: boolean;
-  storyText: string;
-  storyHistory: string[];
-  error: string | null;
-}
-
-interface StoryParams {
-  culture: string;
-  theme: string;
-  max_length: number;
-  language: string;
-  tone: string;
-}
-
-const TONES = [
-  { value: 'adventurous', label: 'Adventurous' },
-  { value: 'mysterious', label: 'Mysterious' },
-  { value: 'heartwarming', label: 'Heartwarming' },
-  { value: 'thrilling', label: 'Thrilling' },
-  { value: 'humorous', label: 'Humorous' },
-  { value: 'enchanting', label: 'Enchanting' },
-  { value: 'dramatic', label: 'Dramatic' },
-  { value: 'whimsical', label: 'Whimsical' }
-];
-
-const LANGUAGES = [
-  { value: 'English', label: 'English' },
-  { value: 'Spanish', label: 'Spanish' },
-  { value: 'French', label: 'French' },
-  { value: 'German', label: 'German' },
-  { value: 'Chinese', label: 'Chinese' },
-  { value: 'Japanese', label: 'Japanese' },
-  { value: 'Italian', label: 'Italian' },
-  { value: 'Russian', label: 'Russian' },
-  { value: 'Arabic', label: 'Arabic' }
-];
-
-const SUGGESTED_CULTURES = [
-  'Celtic', 'Japanese', 'Nordic', 'African', 'Greek', 'Mayan',
-  'Persian', 'Indian', 'Arabian', 'Slavic', 'Egyptian', 'Chinese',
-  'Indigenous American', 'Polynesian', 'Medieval European', 'Renaissance Italian'
-];
-
-const SUGGESTED_THEMES = [
-  'Lost kingdoms', 'Hidden powers', 'A hero\'s journey', 'Forbidden love',
-  'Ancient prophecy', 'Magical transformation', 'Epic quest', 'Time travel',
-  'Mythical creatures', 'Coming of age', 'Betrayal and redemption', 'Parallel worlds'
-];
+import { SUGGESTED_CULTURES, SUGGESTED_THEMES, TONES, LANGUAGES } from '@/constants/story';
+import { StoryState, StoryParams } from '@/types/story';
 
 const StoryMode: React.FC = () => {
   const { theme } = useTheme();
