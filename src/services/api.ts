@@ -4,6 +4,7 @@ import {
   DebateMessageResponse,
   DebateEvaluationResponse,
 } from "@/types/debate";
+import { EvaluationRequest, EvaluationResponse } from "@/types/rpg";
 import axios from "axios";
 
 const BASE_URL = "http://localhost:8000/api/v1";
@@ -23,6 +24,7 @@ interface StoryResponse {
   metadata: Record<string, any>;
   used_rag: boolean;
   reference_count: number;
+  actions : string[];
 }
 
 interface ChatHistoryTurn {
@@ -157,10 +159,49 @@ export const rpgApi = {
 
     return {
       scene: response.data.story,
-      actions: suggestedActions,
+      actions: response.data.actions,
     };
   },
+  
+  evaluateSession: async () => {
+    const gameState = window.currentGameState || {
+      chatHistory: [],
+      currentRole: "Guide",
+      currentCulture: "Global",
+      currentEra: "Modern",
+      currentTone: "friendly",
+      currentLanguage: "English",
+    };
+    
+    const formattedChatHistory = gameState.chatHistory.map(chat => ({
+      user: chat.user,
+      ai: chat.ai
+    }));
+    
+    const payload: EvaluationRequest = {
+      chat_history: formattedChatHistory
+    };
+    
+    const response = await api.post<EvaluationResponse>("/rpg_evaluate", payload);
+    
+    return {
+      empathyScore: response.data.empathy_score,
+      diplomaticSkillScore: response.data.diplomatic_skill_score,
+      historicalAccuracyScore: response.data.historical_accuracy_score,
+      ethicalBalanceScore: response.data.ethical_balance_score,
+      totalScore: response.data.total_score,
+      performanceLevel: calculatePerformanceLevel(response.data.total_score)
+    };
+  }
 };
+
+function calculatePerformanceLevel(totalScore: number): string {
+  if (totalScore >= 90) return "Master Diplomat";
+  if (totalScore >= 75) return "Skilled Negotiator";
+  if (totalScore >= 60) return "Competent Mediator";
+  if (totalScore >= 45) return "Developing Peacemaker";
+  return "Novice";
+}
 
 function generateSuggestedActions(currentScene: string): string[] {
   const defaultActions = [
