@@ -2,28 +2,28 @@ import { Role, Scenario } from "@/types/conflict";
 
 export const scenarios: Scenario[] = [
     {
-      id: 'india-pakistan',
+      id: 'india_pakistan',
       title: 'India-Pakistan Relations',
       description: 'Navigate the complex historical relationship between India and Pakistan, addressing territorial disputes and religious tensions.',
       imageUrl: 'https://images.pexels.com/photos/3791999/pexels-photo-3791999.jpeg',
       difficulty: 'hard'
     },
     {
-      id: 'israel-palestine',
+      id: 'israeli_palestinian',
       title: 'Israeli-Palestinian Conflict',
       description: 'Attempt to broker peace in one of the world\'s most enduring conflicts with deep historical and religious dimensions.',
       imageUrl: 'https://images.pexels.com/photos/271667/pexels-photo-271667.jpeg',
       difficulty: 'hard'
     },
     {
-      id: 'us-china',
+      id: 'us_china',
       title: 'US-China Trade Relations',
       description: 'Balance economic interests, human rights concerns, and geopolitical tensions between global superpowers.',
       imageUrl: 'https://images.pexels.com/photos/1055056/pexels-photo-1055056.jpeg',
       difficulty: 'medium'
     },
     {
-      id: 'eu-migration',
+      id: 'eu_migration',
       title: 'EU Migration Crisis',
       description: 'Address the humanitarian, political, and cultural challenges of migration flows into the European Union.',
       imageUrl: 'https://images.pexels.com/photos/6231/marketing-color-colors-wheel.jpg',

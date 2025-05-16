@@ -43,21 +43,21 @@ interface RolePlayRequest {
   chat_history: ChatHistoryTurn[];
 }
 
-interface StoryResponseRPG {
-  story: string;
-  character_count: number;
-  language: string;
-  metadata: {
-    mode: string;
-    culture: string;
-    role: string;
-    era: string;
-    tone: string;
-    language: string;
-  };
-  used_rag: boolean;
-  reference_count: number;
-}
+// interface StoryResponseRPG {
+//   story: string;
+//   character_count: number;
+//   language: string;
+//   metadata: {
+//     mode: string;
+//     culture: string;
+//     role: string;
+//     era: string;
+//     tone: string;
+//     language: string;
+//   };
+//   used_rag: boolean;
+//   reference_count: number;
+// }
 
 const api = axios.create({
   baseURL: BASE_URL,
@@ -66,10 +66,8 @@ const api = axios.create({
   },
 });
 
-// Story mode API
 export const storyApi = {
   startStory: async (storyRequest: StoryRequest): Promise<StoryResponse> => {
-    // Enhance the request to ensure engaging content
     const enhancedRequest: StoryRequest = {
       ...storyRequest,
       tone: storyRequest.tone || "adventurous",
@@ -123,12 +121,7 @@ export const rpgApi = {
 
     return {
       scene: response.data.story,
-      actions: [
-        "Ask about their background",
-        "Ask for guidance on your journey",
-        "Share something about yourself",
-        "Inquire about local customs",
-      ],
+      actions: response.data.actions
     };
   },
 
@@ -154,8 +147,6 @@ export const rpgApi = {
     };
 
     const response = await api.post<StoryResponse>("/rpg_mode", payload);
-
-    const suggestedActions = generateSuggestedActions(response.data.story);
 
     return {
       scene: response.data.story,
@@ -203,58 +194,73 @@ function calculatePerformanceLevel(totalScore: number): string {
   return "Novice";
 }
 
-function generateSuggestedActions(currentScene: string): string[] {
-  const defaultActions = [
-    "Continue the conversation",
-    "Ask a question",
-    "Share your thoughts",
-    "Change the subject",
-  ];
+// export const conflictApi = {
+//   startScenario: async (scenarioId: string, roleId: string) => {
+//     const response = await api.post("/conflict_resolution", {
+//         scenario_id: scenarioId,
+//         role_id: roleId,
+//         action: "start",
+//       });
+//       return response.data;
+//     },
 
-  if (
-    currentScene.toLowerCase().includes("journey") ||
-    currentScene.toLowerCase().includes("travel")
-  ) {
-    return [
-      "Ask about the destination",
-      "Inquire about dangers ahead",
-      "Request advice for the journey",
-      "Share your travel experience",
-    ];
-  }
-
-  if (
-    currentScene.toLowerCase().includes("culture") ||
-    currentScene.toLowerCase().includes("tradition")
-  ) {
-    return [
-      "Ask for more details about their customs",
-      "Compare with your own culture",
-      "Request to participate in a cultural activity",
-      "Ask about the history behind the tradition",
-    ];
-  }
-
-  return defaultActions;
-}
+//     submitResponse: async (response: string,sessionId : string) => {
+//       const result = await api.post("/conflict_resolution", {
+//         response,
+//         action: "respond",
+//         session_id : sessionId
+//     });
+//     return result.data;
+//   },
+// };
 
 export const conflictApi = {
-  startScenario: async (scenarioId: string, roleId: string) => {
-    const response = await api.post("/conflict_resolution", {
-      scenario_id: scenarioId,
-      role_id: roleId,
-      action: "start",
+  startScenario: async (
+    conflictType: string,
+    playerRole: string,
+    playerFaction: string,
+    initialTension: number = 50
+  ) => {
+    const response = await api.post("/start-conflict", {
+      conflict_type: conflictType,
+      player_role: playerRole,
+      player_faction: playerFaction,
+      tension_level: initialTension,
+      user_input: "Let's begin the conflict resolution scenario.",
+      chat_history: [],
+      current_stage: 0
     });
     return response.data;
   },
 
-  submitResponse: async (response: string) => {
-    const result = await api.post("/conflict_resolution", {
-      response,
-      action: "respond",
+  continueScenario: async (
+    userInput: string,
+    sessionId: string,
+    chatHistory: Array<{ user: string, ai: string }>,
+    tensionLevel: number,
+    currentStage: number,
+    conflictType: string,
+    playerRole: string,
+    playerFaction: string
+  ) => {
+    // Ensure chat history is in the correct format expected by the backend
+    const formattedChatHistory = chatHistory.map(turn => ({
+      user: turn.user,
+      ai: turn.ai
+    }));
+    
+    const result = await api.post("/continue-conflict", {
+      session_id: sessionId,
+      user_input: userInput,
+      chat_history: formattedChatHistory,
+      tension_level: tensionLevel,
+      current_stage: currentStage,
+      conflict_type: conflictType,
+      player_role: playerRole,
+      player_faction: playerFaction
     });
     return result.data;
-  },
+  }
 };
 
 export const debateApi = {
@@ -282,7 +288,7 @@ export const debateApi = {
   ): Promise<DebateEvaluationResponse> => {
     const response = await api.post("/debate/evaluate", {
       prompt,
-      response: argument,
+      user_response : argument,
     });
     return response.data;
   },

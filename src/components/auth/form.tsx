@@ -1,9 +1,9 @@
-import { useState } from "react"
-import { useSignIn, useSignUp, useUser, useClerk } from "@clerk/clerk-react"
+import { useClerk, useSignIn, useSignUp, useUser } from "@clerk/clerk-react"
 import { zodResolver } from "@hookform/resolvers/zod"
+import { Eye, EyeOff, Loader2, Lock } from "lucide-react"
+import { useState } from "react"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
-import { Eye, EyeOff, Loader2, Mail, Lock } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
@@ -128,7 +128,6 @@ export default function AuthForm() {
           </div>
         </div>
   
-        {/* Right Side Auth Form */}
         <div className="w-full">
           {!user ? (
             <Card className="w-full shadow-md border border-gray-200">

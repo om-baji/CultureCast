@@ -1,6 +1,5 @@
-import React from 'react';
+import { BookOpen, MessageCircle, Scale, Users } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { BookOpen, Users, Scale, MessageCircle } from 'lucide-react';
 import { useTheme } from '../contexts/ThemeContext';
 
 const Dashboard = () => {
